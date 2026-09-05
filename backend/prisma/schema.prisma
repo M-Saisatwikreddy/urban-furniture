@@ -1,0 +1,318 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// =========================
+// CONTACT
+// =========================
+
+model Contact {
+  id           Int      @id @default(autoincrement())
+  name         String
+  type         String // CUSTOMER, VENDOR, BOTH
+  email        String?
+  mobile       String?
+  address      String?
+  city         String?
+  state        String?
+  pincode      String?
+  profileImage String?
+  isArchived   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  salesOrders    SalesOrder[]
+  invoices       Invoice[]
+  purchaseOrders PurchaseOrder[]
+  vendorBills    VendorBill[]
+  payments       Payment[]
+}
+
+// =========================
+// PRODUCT
+// =========================
+
+model Product {
+  id            Int      @id @default(autoincrement())
+  name          String
+  type          String // GOODS, SERVICE, COMBO
+  salesPrice    Float
+  purchasePrice Float
+  category      String?
+  stock         Int      @default(0)
+  isArchived    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  salesOrderItems    SalesOrderItem[]
+  invoiceItems       InvoiceItem[]
+  purchaseOrderItems PurchaseOrderItem[]
+  vendorBillItems    VendorBillItem[]
+}
+
+// =========================
+// CHART OF ACCOUNTS
+// =========================
+
+model Account {
+  id        Int      @id @default(autoincrement())
+  name      String
+  type      String // ASSET, LIABILITY, EXPENSE, INCOME, CAPITAL
+  code      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  journalItems JournalItem[]
+}
+
+// =========================
+// JOURNAL
+// =========================
+
+model Journal {
+  id               Int      @id @default(autoincrement())
+  name             String
+  type             String // SALES, PURCHASE, BANK, CASH
+  defaultAccountId Int?
+  createdAt        DateTime @default(now())
+
+  entries JournalEntry[]
+}
+
+// =========================
+// JOURNAL ENTRY
+// =========================
+
+model JournalEntry {
+  id          Int      @id @default(autoincrement())
+  journalId   Int
+  date        DateTime @default(now())
+  reference   String?
+  description String?
+  createdAt   DateTime @default(now())
+
+  journal Journal       @relation(fields: [journalId], references: [id])
+  items   JournalItem[]
+}
+
+// =========================
+// JOURNAL ITEMS
+// =========================
+
+model JournalItem {
+  id             Int   @id @default(autoincrement())
+  journalEntryId Int
+  accountId      Int
+  debit          Float @default(0)
+  credit         Float @default(0)
+
+  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id])
+  account      Account      @relation(fields: [accountId], references: [id])
+}
+
+// =========================
+// SALES ORDER
+// =========================
+
+model SalesOrder {
+  id          Int      @id @default(autoincrement())
+  orderNumber String   @unique
+  contactId   Int
+  orderDate   DateTime @default(now())
+  status      String   @default("DRAFT")
+  total       Float    @default(0)
+  createdAt   DateTime @default(now())
+
+  contact Contact          @relation(fields: [contactId], references: [id])
+  items   SalesOrderItem[]
+  invoice Invoice?
+}
+
+// =========================
+// SALES ORDER ITEMS
+// =========================
+
+model SalesOrderItem {
+  id           Int   @id @default(autoincrement())
+  salesOrderId Int
+  productId    Int
+  quantity     Int
+  unitPrice    Float
+  tax          Float @default(0)
+  total        Float
+
+  salesOrder SalesOrder @relation(fields: [salesOrderId], references: [id])
+  product    Product    @relation(fields: [productId], references: [id])
+}
+
+// =========================
+// CUSTOMER INVOICE
+// =========================
+
+model Invoice {
+  id            Int       @id @default(autoincrement())
+  invoiceNumber String    @unique
+  contactId     Int
+  salesOrderId  Int?      @unique
+  invoiceDate   DateTime  @default(now())
+  dueDate       DateTime?
+  status        String    @default("UNPAID")
+  subtotal      Float     @default(0)
+  tax           Float     @default(0)
+  total         Float     @default(0)
+  paidAmount    Float     @default(0)
+  createdAt     DateTime  @default(now())
+
+  contact    Contact       @relation(fields: [contactId], references: [id])
+  salesOrder SalesOrder?   @relation(fields: [salesOrderId], references: [id])
+  items      InvoiceItem[]
+  payments   Payment[]
+}
+
+// =========================
+// INVOICE ITEMS
+// =========================
+
+model InvoiceItem {
+  id        Int   @id @default(autoincrement())
+  invoiceId Int
+  productId Int
+  quantity  Int
+  unitPrice Float
+  tax       Float @default(0)
+  total     Float
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+}
+
+// =========================
+// PURCHASE ORDER
+// =========================
+
+model PurchaseOrder {
+  id          Int      @id @default(autoincrement())
+  orderNumber String   @unique
+  contactId   Int
+  orderDate   DateTime @default(now())
+  status      String   @default("DRAFT")
+  total       Float    @default(0)
+  createdAt   DateTime @default(now())
+
+  contact Contact             @relation(fields: [contactId], references: [id])
+  items   PurchaseOrderItem[]
+  bill    VendorBill?
+}
+
+// =========================
+// PURCHASE ORDER ITEMS
+// =========================
+
+model PurchaseOrderItem {
+  id              Int   @id @default(autoincrement())
+  purchaseOrderId Int
+  productId       Int
+  quantity        Int
+  unitPrice       Float
+  total           Float
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  product       Product       @relation(fields: [productId], references: [id])
+}
+
+// =========================
+// VENDOR BILL
+// =========================
+
+model VendorBill {
+  id              Int       @id @default(autoincrement())
+  billNumber      String    @unique
+  contactId       Int
+  purchaseOrderId Int?      @unique
+  invoiceDate     DateTime  @default(now())
+  dueDate         DateTime?
+  status          String    @default("UNPAID")
+  subtotal        Float     @default(0)
+  tax             Float     @default(0)
+  total           Float     @default(0)
+  paidAmount      Float     @default(0)
+  createdAt       DateTime  @default(now())
+
+  contact       Contact          @relation(fields: [contactId], references: [id])
+  purchaseOrder PurchaseOrder?   @relation(fields: [purchaseOrderId], references: [id])
+  items         VendorBillItem[]
+  payments      Payment[]
+}
+
+// =========================
+// VENDOR BILL ITEMS
+// =========================
+
+model VendorBillItem {
+  id           Int   @id @default(autoincrement())
+  vendorBillId Int
+  productId    Int
+  quantity     Int
+  unitPrice    Float
+  tax          Float @default(0)
+  total        Float
+
+  vendorBill VendorBill @relation(fields: [vendorBillId], references: [id])
+  product    Product    @relation(fields: [productId], references: [id])
+}
+
+// =========================
+// PAYMENT
+// =========================
+
+model Payment {
+  id            Int      @id @default(autoincrement())
+  paymentNumber String   @unique
+  contactId     Int
+  invoiceId     Int?
+  vendorBillId  Int?
+  paymentDate   DateTime @default(now())
+  method        String // CASH, BANK
+  amount        Float
+  reference     String?
+  createdAt     DateTime @default(now())
+
+  contact    Contact     @relation(fields: [contactId], references: [id])
+  invoice    Invoice?    @relation(fields: [invoiceId], references: [id])
+  vendorBill VendorBill? @relation(fields: [vendorBillId], references: [id])
+}
+
+// =========================
+// ANALYTIC ACCOUNT
+// =========================
+
+model AnalyticAccount {
+  id        Int      @id @default(autoincrement())
+  name      String
+  type      String // INCOME, EXPENSE
+  createdAt DateTime @default(now())
+
+  budgets Budget[]
+}
+
+// =========================
+// BUDGET
+// =========================
+
+model Budget {
+  id                Int      @id @default(autoincrement())
+  name              String
+  periodStart       DateTime
+  periodEnd         DateTime
+  responsiblePerson String?
+  analyticAccountId Int
+  plannedAmount     Float
+  createdAt         DateTime @default(now())
+
+  analyticAccount AnalyticAccount @relation(fields: [analyticAccountId], references: [id])
+}
