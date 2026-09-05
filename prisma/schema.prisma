@@ -1,0 +1,181 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      UserRole @default(ACCOUNTANT)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Customer {
+  id             String    @id @default(cuid())
+  name           String
+  email          String?
+  phone          String?
+  address        String?
+  gstNumber      String?
+  openingBalance Decimal   @default(0) @db.Decimal(14, 2)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  invoices       Invoice[]
+  payments       Payment[]
+}
+
+model Vendor {
+  id             String   @id @default(cuid())
+  name           String
+  email          String?
+  phone          String?
+  address        String?
+  gstNumber      String?
+  openingBalance Decimal  @default(0) @db.Decimal(14, 2)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+}
+
+model Product {
+  id            String        @id @default(cuid())
+  name          String
+  sku           String        @unique
+  description   String?
+  type          ProductType   @default(PRODUCT)
+  purchasePrice Decimal       @db.Decimal(14, 2)
+  sellingPrice  Decimal       @db.Decimal(14, 2)
+  stock         Int           @default(0)
+  reorderLevel  Int           @default(5)
+  categoryId    String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  invoiceItems  InvoiceItem[]
+  category      Category      @relation(fields: [categoryId], references: [id])
+}
+
+model Account {
+  id           String        @id @default(cuid())
+  code         String        @unique
+  name         String
+  type         String
+  description  String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  journalLines JournalLine[]
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  customerId    String
+  invoiceDate   DateTime      @default(now())
+  dueDate       DateTime?
+  subtotal      Decimal       @db.Decimal(14, 2)
+  taxAmount     Decimal       @default(0) @db.Decimal(14, 2)
+  totalAmount   Decimal       @db.Decimal(14, 2)
+  paidAmount    Decimal       @default(0) @db.Decimal(14, 2)
+  status        InvoiceStatus @default(DRAFT)
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  customer      Customer      @relation(fields: [customerId], references: [id])
+  items         InvoiceItem[]
+  payments      Payment[]
+}
+
+model InvoiceItem {
+  id        String  @id @default(cuid())
+  invoiceId String
+  productId String
+  quantity  Int
+  unitPrice Decimal @db.Decimal(14, 2)
+  taxRate   Decimal @default(0) @db.Decimal(5, 2)
+  total     Decimal @db.Decimal(14, 2)
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
+}
+
+model Payment {
+  id          String        @id @default(cuid())
+  customerId  String
+  invoiceId   String?
+  amount      Decimal       @db.Decimal(14, 2)
+  paymentDate DateTime      @default(now())
+  method      PaymentMethod
+  reference   String?
+  notes       String?
+  createdAt   DateTime      @default(now())
+  customer    Customer      @relation(fields: [customerId], references: [id])
+  invoice     Invoice?      @relation(fields: [invoiceId], references: [id])
+}
+
+model JournalEntry {
+  id          String        @id @default(cuid())
+  entryNumber String        @unique
+  entryDate   DateTime      @default(now())
+  description String
+  reference   String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  lines       JournalLine[]
+}
+
+model JournalLine {
+  id             String          @id @default(cuid())
+  journalEntryId String
+  accountId      String
+  type           TransactionType
+  amount         Decimal         @db.Decimal(14, 2)
+  description    String?
+  account        Account         @relation(fields: [accountId], references: [id])
+  journalEntry   JournalEntry    @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+}
+
+enum UserRole {
+  ADMIN
+  ACCOUNTANT
+  SALES
+  INVENTORY
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  PARTIALLY_PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  UPI
+  CARD
+  CHEQUE
+}
+
+enum TransactionType {
+  DEBIT
+  CREDIT
+}
+
+enum ProductType {
+  PRODUCT
+  SERVICE
+}
