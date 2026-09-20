@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -78,6 +77,11 @@ const sections = [
         href: "/journal",
         icon: "≡",
       },
+      {
+        label: "Budgets",
+        href: "/budgets",
+        icon: "◫",
+      },
     ],
   },
 
@@ -108,7 +112,6 @@ export default function Sidebar() {
 
   return (
     <aside className="fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-slate-200 bg-white">
-
       {/* BRAND */}
       <div className="flex h-16 items-center border-b border-slate-200 px-6">
         <div>
@@ -124,16 +127,13 @@ export default function Sidebar() {
 
       {/* NAVIGATION */}
       <nav className="flex-1 overflow-y-auto px-3 py-5">
-
         {sections.map((section) => (
           <div key={section.title} className="mb-6">
-
             <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
               {section.title}
             </p>
 
             <div className="space-y-1">
-
               {section.items.map((item) => {
                 const active =
                   pathname === item.href ||
@@ -158,18 +158,14 @@ export default function Sidebar() {
                   </Link>
                 );
               })}
-
             </div>
           </div>
         ))}
-
       </nav>
 
       {/* USER PROFILE + LOGOUT */}
       <div className="border-t border-slate-200 p-4">
-
         <div className="mb-3 flex items-center gap-3 rounded-lg bg-slate-50 p-3">
-
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">
             SA
           </div>
@@ -183,7 +179,6 @@ export default function Sidebar() {
               Administrator
             </p>
           </div>
-
         </div>
 
         <button
@@ -197,9 +192,7 @@ export default function Sidebar() {
 
           <span>Logout</span>
         </button>
-
       </div>
-
     </aside>
   );
 }

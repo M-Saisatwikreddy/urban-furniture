@@ -179,3 +179,13 @@ enum ProductType {
   PRODUCT
   SERVICE
 }
+model Budget {
+  id              String   @id @default(cuid())
+  name            String
+  period          String
+  responsible     String
+  plannedAmount   Decimal  @db.Decimal(12, 2)
+  analyticAccount String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
