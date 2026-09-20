@@ -22,3 +22,7 @@ next-env.d.ts
 .windsurf/
 skills-lock.json
 .env*
+node_modules
+
+.next/
+.DS_Store

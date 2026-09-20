@@ -2,17 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { createPayment } from "./actions";
 
 export default async function PaymentsPage() {
-  const [customers, invoices, payments] = await Promise.all([
-    prisma.customer.findMany({
-      select: {
-        id: true,
-        name: true,
-      },
-      orderBy: {
-        name: "asc",
-      },
-    }),
-
+  const [invoices, payments] = await Promise.all([
+    // Outstanding / non-cancelled invoices
     prisma.invoice.findMany({
       where: {
         status: {
@@ -37,6 +28,7 @@ export default async function PaymentsPage() {
       },
     }),
 
+    // Payment history
     prisma.payment.findMany({
       include: {
         customer: true,
@@ -48,6 +40,7 @@ export default async function PaymentsPage() {
     }),
   ]);
 
+  // Only invoices with an outstanding balance
   const openInvoices = invoices.filter((invoice) => {
     const total = Number(invoice.totalAmount);
     const paid = Number(invoice.paidAmount);
@@ -57,7 +50,9 @@ export default async function PaymentsPage() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
+      {/* ================================
+          HEADER
+      ================================= */}
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-slate-900">
           Payments
@@ -68,7 +63,9 @@ export default async function PaymentsPage() {
         </p>
       </div>
 
-      {/* Payment Form */}
+      {/* ================================
+          RECORD PAYMENT
+      ================================= */}
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">
@@ -80,44 +77,20 @@ export default async function PaymentsPage() {
           </p>
         </div>
 
-        {customers.length === 0 || openInvoices.length === 0 ? (
+        {openInvoices.length === 0 ? (
           <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-            {customers.length === 0
-              ? "Create a customer before recording a payment."
-              : "There are no outstanding invoices available for payment."}
+            There are no outstanding invoices available for payment.
           </div>
         ) : (
-          <form action={createPayment} className="mt-6 space-y-6">
+          <form
+            action={createPayment}
+            className="mt-6 space-y-6"
+          >
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-              {/* Customer */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Customer *
-                </label>
-
-                <select
-                  name="customerId"
-                  required
-                  defaultValue=""
-                  className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-900"
-                >
-                  <option value="" disabled>
-                    Select customer
-                  </option>
-
-                  {customers.map((customer) => (
-                    <option
-                      key={customer.id}
-                      value={customer.id}
-                    >
-                      {customer.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Invoice */}
-              <div>
+              {/* ================================
+                  INVOICE
+              ================================= */}
+              <div className="md:col-span-2">
                 <label className="mb-2 block text-sm font-medium text-slate-700">
                   Invoice *
                 </label>
@@ -151,9 +124,16 @@ export default async function PaymentsPage() {
                     );
                   })}
                 </select>
+
+                <p className="mt-2 text-xs text-slate-500">
+                  The customer is automatically taken from the selected
+                  invoice.
+                </p>
               </div>
 
-              {/* Amount */}
+              {/* ================================
+                  PAYMENT AMOUNT
+              ================================= */}
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">
                   Payment Amount (₹) *
@@ -170,7 +150,9 @@ export default async function PaymentsPage() {
                 />
               </div>
 
-              {/* Payment Method */}
+              {/* ================================
+                  PAYMENT METHOD
+              ================================= */}
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">
                   Payment Method *
@@ -186,17 +168,31 @@ export default async function PaymentsPage() {
                     Select method
                   </option>
 
-                  <option value="CASH">Cash</option>
+                  <option value="CASH">
+                    Cash
+                  </option>
+
                   <option value="BANK_TRANSFER">
                     Bank Transfer
                   </option>
-                  <option value="UPI">UPI</option>
-                  <option value="CARD">Card</option>
-                  <option value="CHEQUE">Cheque</option>
+
+                  <option value="UPI">
+                    UPI
+                  </option>
+
+                  <option value="CARD">
+                    Card
+                  </option>
+
+                  <option value="CHEQUE">
+                    Cheque
+                  </option>
                 </select>
               </div>
 
-              {/* Reference */}
+              {/* ================================
+                  REFERENCE
+              ================================= */}
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">
                   Reference
@@ -210,7 +206,9 @@ export default async function PaymentsPage() {
                 />
               </div>
 
-              {/* Notes */}
+              {/* ================================
+                  NOTES
+              ================================= */}
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">
                   Notes
@@ -225,6 +223,9 @@ export default async function PaymentsPage() {
               </div>
             </div>
 
+            {/* ================================
+                SUBMIT
+            ================================= */}
             <div className="flex justify-end">
               <button
                 type="submit"
@@ -237,7 +238,9 @@ export default async function PaymentsPage() {
         )}
       </div>
 
-      {/* Payment History */}
+      {/* ================================
+          PAYMENT HISTORY
+      ================================= */}
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-6 py-5">
           <h2 className="font-semibold text-slate-900">
@@ -291,21 +294,25 @@ export default async function PaymentsPage() {
                     key={payment.id}
                     className="hover:bg-slate-50"
                   >
+                    {/* Date */}
                     <td className="px-6 py-4 text-sm text-slate-700">
                       {payment.paymentDate.toLocaleDateString(
                         "en-IN"
                       )}
                     </td>
 
+                    {/* Customer */}
                     <td className="px-6 py-4 text-sm font-medium text-slate-900">
                       {payment.customer.name}
                     </td>
 
-                    <td className="px-6 py-4 font-mono text-sm text-slate-700">
-                      {payment.invoice?.invoiceNumber || "—"}
+                    {/* Invoice */}
+                    <td className="px-6 py-4 font-mono text-xs text-slate-600">
+                      {payment.invoice?.invoiceNumber ?? "—"}
                     </td>
 
-                    <td className="px-6 py-4 text-sm font-bold text-slate-900">
+                    {/* Amount */}
+                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">
                       ₹
                       {Number(payment.amount).toLocaleString(
                         "en-IN",
@@ -315,12 +322,12 @@ export default async function PaymentsPage() {
                       )}
                     </td>
 
-                    <td className="px-6 py-4">
-                      <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                        {payment.method.replace("_", " ")}
-                      </span>
+                    {/* Method */}
+                    <td className="px-6 py-4 text-sm text-slate-700">
+                      {payment.method.replace("_", " ")}
                     </td>
 
+                    {/* Reference */}
                     <td className="px-6 py-4 text-sm text-slate-500">
                       {payment.reference || "—"}
                     </td>

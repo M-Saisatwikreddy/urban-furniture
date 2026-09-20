@@ -1,7 +1,9 @@
+
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 const sections = [
   {
@@ -11,6 +13,11 @@ const sections = [
         label: "Dashboard",
         href: "/dashboard",
         icon: "▦",
+      },
+      {
+        label: "Users",
+        href: "/users",
+        icon: "♙",
       },
     ],
   },
@@ -67,11 +74,6 @@ const sections = [
     title: "Accounting",
     items: [
       {
-        label: "Accounts",
-        href: "/accounts",
-        icon: "◎",
-      },
-      {
         label: "Journal",
         href: "/journal",
         icon: "≡",
@@ -93,6 +95,16 @@ const sections = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  async function handleLogout() {
+    const supabase = createClient();
+
+    await supabase.auth.signOut();
+
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <aside className="fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-slate-200 bg-white">
@@ -114,16 +126,12 @@ export default function Sidebar() {
       <nav className="flex-1 overflow-y-auto px-3 py-5">
 
         {sections.map((section) => (
-          <div
-            key={section.title}
-            className="mb-6"
-          >
-            {/* Section title */}
+          <div key={section.title} className="mb-6">
+
             <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
               {section.title}
             </p>
 
-            {/* Section items */}
             <div className="space-y-1">
 
               {section.items.map((item) => {
@@ -142,12 +150,10 @@ export default function Sidebar() {
                         : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                     }`}
                   >
-                    {/* Icon */}
                     <span className="flex h-5 w-5 items-center justify-center text-sm">
                       {item.icon}
                     </span>
 
-                    {/* Label */}
                     <span>{item.label}</span>
                   </Link>
                 );
@@ -159,19 +165,16 @@ export default function Sidebar() {
 
       </nav>
 
-      {/* USER PROFILE */}
+      {/* USER PROFILE + LOGOUT */}
       <div className="border-t border-slate-200 p-4">
 
-        <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
+        <div className="mb-3 flex items-center gap-3 rounded-lg bg-slate-50 p-3">
 
-          {/* Avatar */}
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">
             SA
           </div>
 
-          {/* User information */}
           <div className="min-w-0">
-
             <p className="truncate text-sm font-semibold text-slate-900">
               Admin User
             </p>
@@ -179,10 +182,21 @@ export default function Sidebar() {
             <p className="truncate text-xs text-slate-500">
               Administrator
             </p>
-
           </div>
 
         </div>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50"
+        >
+          <span className="flex h-5 w-5 items-center justify-center">
+            ↪
+          </span>
+
+          <span>Logout</span>
+        </button>
 
       </div>
 
