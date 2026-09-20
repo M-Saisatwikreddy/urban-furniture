@@ -59,15 +59,25 @@ const sections = [
   },
 
   {
-    title: "Purchases",
-    items: [
-      {
-        label: "Vendors",
-        href: "/vendors",
-        icon: "♙",
-      },
-    ],
-  },
+  title: "Purchases",
+  items: [
+    {
+      label: "Purchase Orders",
+      href: "/purchase-orders",
+      icon: "▣",
+    },
+    {
+      label: "Vendor Bills",
+      href: "/vendor-bills",
+      icon: "▤",
+    },
+    {
+      label: "Vendors",
+      href: "/vendors",
+      icon: "♙",
+    },
+  ],
+},
 
   {
     title: "Accounting",

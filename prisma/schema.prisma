@@ -26,6 +26,7 @@ model Customer {
   openingBalance Decimal   @default(0) @db.Decimal(14, 2)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+
   invoices       Invoice[]
   payments       Payment[]
 }
@@ -40,6 +41,10 @@ model Vendor {
   openingBalance Decimal  @default(0) @db.Decimal(14, 2)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  purchaseOrders PurchaseOrder[]
+  vendorBills    VendorBill[]
+  vendorPayments VendorPayment[]
 }
 
 model Category {
@@ -48,6 +53,7 @@ model Category {
   description String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
   products    Product[]
 }
 
@@ -64,8 +70,11 @@ model Product {
   categoryId    String
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
-  invoiceItems  InvoiceItem[]
-  category      Category      @relation(fields: [categoryId], references: [id])
+
+  invoiceItems       InvoiceItem[]
+  category           Category            @relation(fields: [categoryId], references: [id])
+  purchaseOrderItems PurchaseOrderItem[]
+  vendorBillItems    VendorBillItem[]
 }
 
 model Account {
@@ -76,6 +85,7 @@ model Account {
   description  String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+
   journalLines JournalLine[]
 }
 
@@ -93,6 +103,7 @@ model Invoice {
   notes         String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+
   customer      Customer      @relation(fields: [customerId], references: [id])
   items         InvoiceItem[]
   payments      Payment[]
@@ -106,6 +117,7 @@ model InvoiceItem {
   unitPrice Decimal @db.Decimal(14, 2)
   taxRate   Decimal @default(0) @db.Decimal(5, 2)
   total     Decimal @db.Decimal(14, 2)
+
   invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   product   Product @relation(fields: [productId], references: [id])
 }
@@ -120,6 +132,7 @@ model Payment {
   reference   String?
   notes       String?
   createdAt   DateTime      @default(now())
+
   customer    Customer      @relation(fields: [customerId], references: [id])
   invoice     Invoice?      @relation(fields: [invoiceId], references: [id])
 }
@@ -132,6 +145,7 @@ model JournalEntry {
   reference   String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+
   lines       JournalLine[]
 }
 
@@ -142,6 +156,7 @@ model JournalLine {
   type           TransactionType
   amount         Decimal         @db.Decimal(14, 2)
   description    String?
+
   account        Account         @relation(fields: [accountId], references: [id])
   journalEntry   JournalEntry    @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
 }
@@ -179,6 +194,7 @@ enum ProductType {
   PRODUCT
   SERVICE
 }
+
 model Budget {
   id              String   @id @default(cuid())
   name            String
@@ -188,4 +204,112 @@ model Budget {
   analyticAccount String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  CONFIRMED
+  BILLED
+  CANCELLED
+}
+
+model PurchaseOrder {
+  id          String              @id @default(cuid())
+  orderNumber String              @unique
+  vendorId    String
+  orderDate   DateTime            @default(now())
+  status      PurchaseOrderStatus @default(DRAFT)
+  totalAmount Decimal             @db.Decimal(12, 2)
+  notes       String?
+
+  vendor      Vendor              @relation(fields: [vendorId], references: [id])
+  items       PurchaseOrderItem[]
+  vendorBills VendorBill[]
+
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+}
+
+model PurchaseOrderItem {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  productId       String
+  quantity        Decimal       @db.Decimal(12, 2)
+  unitPrice       Decimal       @db.Decimal(12, 2)
+  total           Decimal       @db.Decimal(12, 2)
+
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product         Product       @relation(fields: [productId], references: [id])
+
+  createdAt       DateTime      @default(now())
+}
+
+enum VendorBillStatus {
+  DRAFT
+  POSTED
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+}
+
+model VendorBill {
+  id              String           @id @default(cuid())
+  billNumber      String           @unique
+  vendorId        String
+  purchaseOrderId String?
+  billDate        DateTime         @default(now())
+  dueDate         DateTime?
+  subtotal        Decimal          @db.Decimal(14, 2)
+  taxAmount       Decimal          @default(0) @db.Decimal(14, 2)
+  totalAmount     Decimal          @db.Decimal(14, 2)
+  paidAmount      Decimal          @default(0) @db.Decimal(14, 2)
+  status          VendorBillStatus @default(DRAFT)
+  notes           String?
+
+  vendor          Vendor           @relation(fields: [vendorId], references: [id])
+  purchaseOrder   PurchaseOrder?   @relation(fields: [purchaseOrderId], references: [id])
+  items           VendorBillItem[]
+  payments        VendorPayment[]
+
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model VendorBillItem {
+  id           String     @id @default(cuid())
+  vendorBillId String
+  productId    String
+  quantity     Decimal    @db.Decimal(12, 2)
+  unitPrice    Decimal    @db.Decimal(14, 2)
+  taxRate      Decimal    @default(0) @db.Decimal(5, 2)
+  total        Decimal    @db.Decimal(14, 2)
+
+  vendorBill   VendorBill @relation(fields: [vendorBillId], references: [id], onDelete: Cascade)
+  product      Product    @relation(fields: [productId], references: [id])
+
+  createdAt    DateTime   @default(now())
+}
+
+enum VendorPaymentMethod {
+  CASH
+  BANK_TRANSFER
+  UPI
+  CARD
+  CHEQUE
+}
+
+model VendorPayment {
+  id           String              @id @default(cuid())
+  vendorBillId String
+  vendorId    String
+  amount       Decimal             @db.Decimal(14, 2)
+  paymentDate  DateTime            @default(now())
+  method       VendorPaymentMethod
+  reference    String?
+  notes        String?
+
+  vendorBill   VendorBill @relation(fields: [vendorBillId], references: [id])
+  vendor       Vendor     @relation(fields: [vendorId], references: [id])
+
+  createdAt    DateTime   @default(now())
 }
