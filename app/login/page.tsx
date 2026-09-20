@@ -1,4 +1,3 @@
-
 import { login } from "./actions";
 
 type LoginPageProps = {
@@ -51,8 +50,9 @@ export default async function LoginPage({
                 name="email"
                 type="email"
                 required
+                autoComplete="email"
                 placeholder="admin@urbanfurniture.com"
-                className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-200"
+                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-200"
               />
             </div>
 
@@ -69,8 +69,9 @@ export default async function LoginPage({
                 name="password"
                 type="password"
                 required
+                autoComplete="current-password"
                 placeholder="••••••••"
-                className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-200"
+                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-200"
               />
             </div>
 
