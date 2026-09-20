@@ -29,6 +29,7 @@ model Customer {
 
   invoices       Invoice[]
   payments       Payment[]
+  salesOrders    SalesOrder[]
 }
 
 model Vendor {
@@ -58,23 +59,24 @@ model Category {
 }
 
 model Product {
-  id            String        @id @default(cuid())
-  name          String
-  sku           String        @unique
-  description   String?
-  type          ProductType   @default(PRODUCT)
-  purchasePrice Decimal       @db.Decimal(14, 2)
-  sellingPrice  Decimal       @db.Decimal(14, 2)
-  stock         Int           @default(0)
-  reorderLevel  Int           @default(5)
-  categoryId    String
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id                  String              @id @default(cuid())
+  name                String
+  sku                 String              @unique
+  description         String?
+  type                ProductType         @default(PRODUCT)
+  purchasePrice       Decimal             @db.Decimal(14, 2)
+  sellingPrice        Decimal             @db.Decimal(14, 2)
+  stock               Int                 @default(0)
+  reorderLevel        Int                 @default(5)
+  categoryId          String
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 
-  invoiceItems       InvoiceItem[]
-  category           Category            @relation(fields: [categoryId], references: [id])
-  purchaseOrderItems PurchaseOrderItem[]
-  vendorBillItems    VendorBillItem[]
+  invoiceItems        InvoiceItem[]
+  category            Category            @relation(fields: [categoryId], references: [id])
+  purchaseOrderItems  PurchaseOrderItem[]
+  vendorBillItems     VendorBillItem[]
+  salesOrderItems     SalesOrderItem[]
 }
 
 model Account {
@@ -120,6 +122,46 @@ model InvoiceItem {
 
   invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   product   Product @relation(fields: [productId], references: [id])
+}
+
+enum SalesOrderStatus {
+  DRAFT
+  CONFIRMED
+  INVOICED
+  CANCELLED
+}
+
+model SalesOrder {
+  id          String           @id @default(cuid())
+  orderNumber String           @unique
+  customerId  String
+  orderDate   DateTime         @default(now())
+  status      SalesOrderStatus @default(DRAFT)
+  subtotal    Decimal          @db.Decimal(14, 2)
+  taxAmount   Decimal          @default(0) @db.Decimal(14, 2)
+  totalAmount Decimal          @db.Decimal(14, 2)
+  notes       String?
+
+  customer    Customer         @relation(fields: [customerId], references: [id])
+  items       SalesOrderItem[]
+
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model SalesOrderItem {
+  id           String     @id @default(cuid())
+  salesOrderId String
+  productId    String
+  quantity     Int
+  unitPrice    Decimal    @db.Decimal(14, 2)
+  taxRate      Decimal    @default(0) @db.Decimal(5, 2)
+  total        Decimal    @db.Decimal(14, 2)
+
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  product      Product    @relation(fields: [productId], references: [id])
+
+  createdAt    DateTime   @default(now())
 }
 
 model Payment {
@@ -301,7 +343,7 @@ enum VendorPaymentMethod {
 model VendorPayment {
   id           String              @id @default(cuid())
   vendorBillId String
-  vendorId    String
+  vendorId     String
   amount       Decimal             @db.Decimal(14, 2)
   paymentDate  DateTime            @default(now())
   method       VendorPaymentMethod
