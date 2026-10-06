@@ -22,6 +22,17 @@ const sections = [
   },
 
   {
+    title: "AI",
+    items: [
+      {
+        label: "AI Assistant",
+        href: "/dashboard/ai",
+        icon: "✦",
+      },
+    ],
+  },
+
+  {
     title: "Sales",
     items: [
       {
