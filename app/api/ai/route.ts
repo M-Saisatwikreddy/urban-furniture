@@ -9,6 +9,52 @@ function formatCurrency(value: number) {
   })}`;
 }
 
+// =========================================================
+// FIND CUSTOMER FROM USER MESSAGE
+// =========================================================
+async function findCustomerName(message: string) {
+  const customers = await prisma.customer.findMany({
+    select: {
+      name: true,
+    },
+  });
+
+  const normalizedInput = message.toLowerCase();
+
+  const sortedCustomers = customers.sort(
+    (a, b) => b.name.length - a.name.length
+  );
+
+  const match = sortedCustomers.find((customer) =>
+    normalizedInput.includes(customer.name.toLowerCase())
+  );
+
+  return match?.name ?? null;
+}
+
+// =========================================================
+// FIND PRODUCT FROM USER MESSAGE
+// =========================================================
+async function findProductName(message: string) {
+  const products = await prisma.product.findMany({
+    select: {
+      name: true,
+    },
+  });
+
+  const normalizedInput = message.toLowerCase();
+
+  const sortedProducts = products.sort(
+    (a, b) => b.name.length - a.name.length
+  );
+
+  const match = sortedProducts.find((product) =>
+    normalizedInput.includes(product.name.toLowerCase())
+  );
+
+  return match?.name ?? null;
+}
+
 export async function POST(request: Request) {
   try {
     const { message } = await request.json();
@@ -64,7 +110,6 @@ export async function POST(request: Request) {
 
     // =========================================================
     // 2. CUSTOMER WHO OWES THE MOST
-    // IMPORTANT: BEFORE GENERIC CUSTOMER OUTSTANDING
     // =========================================================
     if (
       normalizedMessage.includes("customer owes the most") ||
@@ -121,7 +166,189 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 3. CUSTOMER OUTSTANDING / ACCOUNTS RECEIVABLE
+    // 3. CUSTOMER-SPECIFIC QUESTIONS
+    // =========================================================
+    const customerName = await findCustomerName(normalizedMessage);
+
+    if (customerName) {
+      const customer = await prisma.customer.findFirst({
+        where: {
+          name: {
+            equals: customerName,
+            mode: "insensitive",
+          },
+        },
+        select: {
+          name: true,
+          email: true,
+          phone: true,
+          invoices: {
+            select: {
+              invoiceNumber: true,
+              invoiceDate: true,
+              totalAmount: true,
+              paidAmount: true,
+              status: true,
+            },
+            orderBy: {
+              invoiceDate: "desc",
+            },
+          },
+        },
+      });
+
+      if (customer) {
+        const totalInvoiced = customer.invoices.reduce(
+          (sum, invoice) => sum + Number(invoice.totalAmount),
+          0
+        );
+
+        const totalPaid = customer.invoices.reduce(
+          (sum, invoice) => sum + Number(invoice.paidAmount),
+          0
+        );
+
+        const outstanding = totalInvoiced - totalPaid;
+
+        // -----------------------------------------------------
+        // 3A. CUSTOMER OUTSTANDING
+        // -----------------------------------------------------
+        if (
+          normalizedMessage.includes("owes us") ||
+          normalizedMessage.includes("owes") ||
+          normalizedMessage.includes("outstanding") ||
+          normalizedMessage.includes("amount due") ||
+          normalizedMessage.includes("how much does") ||
+          normalizedMessage.includes("how much do")
+        ) {
+          return NextResponse.json({
+            success: true,
+            response: `**${customer.name}** currently owes Urban Furniture **${formatCurrency(
+              outstanding
+            )}**.`,
+          });
+        }
+
+        // -----------------------------------------------------
+        // 3B. CUSTOMER INVOICE HISTORY
+        // -----------------------------------------------------
+        if (
+          normalizedMessage.includes("what invoices") ||
+          normalizedMessage.includes("which invoices") ||
+          normalizedMessage.includes("show invoices") ||
+          normalizedMessage.includes("invoice history") ||
+          normalizedMessage.includes("customer history") ||
+          normalizedMessage.includes("what did")
+        ) {
+          if (customer.invoices.length === 0) {
+            return NextResponse.json({
+              success: true,
+              response: `**${customer.name}** has no invoices.`,
+            });
+          }
+
+          const invoiceDetails = customer.invoices
+            .map(
+              (invoice) =>
+                `- **${invoice.invoiceNumber}** — ${formatCurrency(
+                  Number(invoice.totalAmount)
+                )} — Paid: ${formatCurrency(
+                  Number(invoice.paidAmount)
+                )} — Outstanding: ${formatCurrency(
+                  Number(invoice.totalAmount) -
+                    Number(invoice.paidAmount)
+                )} — Status: **${invoice.status}**`
+            )
+            .join("\n");
+
+          return NextResponse.json({
+            success: true,
+            response: `Here are the invoices for **${customer.name}**:\n\n${invoiceDetails}`,
+          });
+        }
+
+        // -----------------------------------------------------
+        // 3C. CUSTOMER EMAIL
+        // -----------------------------------------------------
+        if (
+          normalizedMessage.includes("email") ||
+          normalizedMessage.includes("mail address") ||
+          normalizedMessage.includes("email address")
+        ) {
+          return NextResponse.json({
+            success: true,
+            response: `The email address for **${customer.name}** is **${
+              customer.email || "Not provided"
+            }**.`,
+          });
+        }
+
+        // -----------------------------------------------------
+        // 3D. CUSTOMER PHONE
+        // -----------------------------------------------------
+        if (
+          normalizedMessage.includes("phone") ||
+          normalizedMessage.includes("phone number") ||
+          normalizedMessage.includes("mobile") ||
+          normalizedMessage.includes("contact number")
+        ) {
+          return NextResponse.json({
+            success: true,
+            response: `The phone number for **${customer.name}** is **${
+              customer.phone || "Not provided"
+            }**.`,
+          });
+        }
+
+        // -----------------------------------------------------
+        // 3E. FULL CUSTOMER DETAILS
+        // -----------------------------------------------------
+        if (
+          normalizedMessage.includes("tell me about") ||
+          normalizedMessage.includes("details about") ||
+          normalizedMessage.includes("information about") ||
+          normalizedMessage.includes("info about") ||
+          normalizedMessage.includes("customer details") ||
+          normalizedMessage.includes("customer information") ||
+          normalizedMessage.includes("about the customer")
+        ) {
+          const invoiceDetails = customer.invoices
+            .map(
+              (invoice) =>
+                `- **${invoice.invoiceNumber}** — ${formatCurrency(
+                  Number(invoice.totalAmount)
+                )} — Paid: ${formatCurrency(
+                  Number(invoice.paidAmount)
+                )} — Outstanding: ${formatCurrency(
+                  Number(invoice.totalAmount) -
+                    Number(invoice.paidAmount)
+                )} — Status: **${invoice.status}**`
+            )
+            .join("\n");
+
+          return NextResponse.json({
+            success: true,
+            response: `Here are the details for **${customer.name}**:
+
+- Email: **${customer.email || "Not provided"}**
+- Phone: **${customer.phone || "Not provided"}**
+- Total invoices: **${customer.invoices.length}**
+- Total invoiced: **${formatCurrency(totalInvoiced)}**
+- Total paid: **${formatCurrency(totalPaid)}**
+- Outstanding: **${formatCurrency(outstanding)}**
+
+${
+  invoiceDetails
+    ? `Invoice history:\n\n${invoiceDetails}`
+    : "No invoices found for this customer."
+}`,
+          });
+        }
+      }
+    }
+
+    // =========================================================
+    // 4. CUSTOMER OUTSTANDING / ACCOUNTS RECEIVABLE
     // =========================================================
     if (
       normalizedMessage.includes("owe") ||
@@ -164,7 +391,7 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 4. OVERDUE INVOICES
+    // 5. OVERDUE INVOICES
     // =========================================================
     if (
       normalizedMessage.includes("overdue") ||
@@ -218,9 +445,10 @@ export async function POST(request: Request) {
             ? invoice.dueDate.toLocaleDateString("en-IN")
             : "No due date";
 
-          return `- **${invoice.invoiceNumber}** — ${invoice.customer.name}\n  Due: ${dueDate}\n  Outstanding: ${formatCurrency(
-            outstanding
-          )}\n  Status: ${invoice.status}`;
+          return `- **${invoice.invoiceNumber}** — ${invoice.customer.name}
+  Due: ${dueDate}
+  Outstanding: ${formatCurrency(outstanding)}
+  Status: ${invoice.status}`;
         })
         .join("\n\n");
 
@@ -231,7 +459,7 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 5. UNPAID INVOICES
+    // 6. UNPAID INVOICES
     // =========================================================
     if (
       normalizedMessage.includes("unpaid invoice") ||
@@ -284,13 +512,11 @@ export async function POST(request: Request) {
 
           return `- **${invoice.invoiceNumber}** — ${
             invoice.customer.name
-          }\n  Amount: ${formatCurrency(
-            Number(invoice.totalAmount)
-          )}\n  Paid: ${formatCurrency(
-            Number(invoice.paidAmount)
-          )}\n  Outstanding: ${formatCurrency(
-            outstanding
-          )}\n  Status: ${invoice.status}`;
+          }
+  Amount: ${formatCurrency(Number(invoice.totalAmount))}
+  Paid: ${formatCurrency(Number(invoice.paidAmount))}
+  Outstanding: ${formatCurrency(outstanding)}
+  Status: ${invoice.status}`;
         })
         .join("\n\n");
 
@@ -301,7 +527,7 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 6. DRAFT / PENDING INVOICES
+    // 7. DRAFT / PENDING INVOICES
     // =========================================================
     if (
       normalizedMessage.includes("draft invoice") ||
@@ -354,9 +580,11 @@ export async function POST(request: Request) {
 
           return `- **${invoice.invoiceNumber}** — ${
             invoice.customer.name
-          }\n  Invoice date: ${invoiceDate}\n  Due date: ${dueDate}\n  Amount: ${formatCurrency(
-            Number(invoice.totalAmount)
-          )}\n  Status: ${invoice.status}`;
+          }
+  Invoice date: ${invoiceDate}
+  Due date: ${dueDate}
+  Amount: ${formatCurrency(Number(invoice.totalAmount))}
+  Status: ${invoice.status}`;
         })
         .join("\n\n");
 
@@ -367,7 +595,7 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 7. LOW STOCK / RESTOCKING
+    // 8. LOW STOCK / RESTOCKING
     // =========================================================
     if (
       normalizedMessage.includes("low stock") ||
@@ -408,7 +636,10 @@ export async function POST(request: Request) {
       const details = lowStockProducts
         .map(
           (product) =>
-            `- **${product.name}** (SKU: ${product.sku})\n  Category: ${product.category.name}\n  Current stock: ${product.stock}\n  Reorder level: ${product.reorderLevel}`
+            `- **${product.name}** (SKU: ${product.sku})
+  Category: ${product.category.name}
+  Current stock: ${product.stock}
+  Reorder level: ${product.reorderLevel}`
         )
         .join("\n\n");
 
@@ -419,7 +650,121 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 8. CUSTOMER COUNT
+    // 9. PRODUCT-SPECIFIC QUESTIONS
+    // =========================================================
+    const productName = await findProductName(normalizedMessage);
+
+    if (productName) {
+      const product = await prisma.product.findFirst({
+        where: {
+          name: {
+            equals: productName,
+            mode: "insensitive",
+          },
+        },
+        select: {
+          name: true,
+          sku: true,
+          description: true,
+          type: true,
+          purchasePrice: true,
+          sellingPrice: true,
+          stock: true,
+          reorderLevel: true,
+          category: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      });
+
+      if (product) {
+        const stockStatus =
+          product.stock <= product.reorderLevel
+            ? "Low stock"
+            : "Stock level is healthy";
+
+        // -----------------------------------------------------
+        // 9A. PRODUCT STOCK
+        // -----------------------------------------------------
+        if (
+          normalizedMessage.includes("stock") ||
+          normalizedMessage.includes("inventory") ||
+          normalizedMessage.includes("how many")
+        ) {
+          return NextResponse.json({
+            success: true,
+            response: `**${product.name}** currently has **${product.stock} units** in stock.`,
+          });
+        }
+
+        // -----------------------------------------------------
+        // 9B. PRODUCT PRICE
+        // -----------------------------------------------------
+        if (
+          normalizedMessage.includes("price") ||
+          normalizedMessage.includes("cost") ||
+          normalizedMessage.includes("selling price")
+        ) {
+          return NextResponse.json({
+            success: true,
+            response: `The selling price of **${product.name}** is **${formatCurrency(
+              Number(product.sellingPrice)
+            )}**.`,
+          });
+        }
+
+        // -----------------------------------------------------
+        // 9C. PRODUCT SKU
+        // -----------------------------------------------------
+        if (normalizedMessage.includes("sku")) {
+          return NextResponse.json({
+            success: true,
+            response: `The SKU for **${product.name}** is **${product.sku}**.`,
+          });
+        }
+
+        // -----------------------------------------------------
+        // 9D. FULL PRODUCT DETAILS
+        // -----------------------------------------------------
+        if (
+          normalizedMessage.includes("tell me about") ||
+          normalizedMessage.includes("details about") ||
+          normalizedMessage.includes("information about") ||
+          normalizedMessage.includes("info about") ||
+          normalizedMessage.includes("product details") ||
+          normalizedMessage.includes("product information") ||
+          normalizedMessage.includes("about the product")
+        ) {
+          return NextResponse.json({
+            success: true,
+            response: `Here are the details for **${product.name}**:
+
+- SKU: **${product.sku}**
+- Category: **${product.category.name}**
+- Type: **${product.type}**
+- Purchase price: **${formatCurrency(
+              Number(product.purchasePrice)
+            )}**
+- Selling price: **${formatCurrency(
+              Number(product.sellingPrice)
+            )}**
+- Current stock: **${product.stock} units**
+- Reorder level: **${product.reorderLevel} units**
+- Stock status: **${stockStatus}**
+${
+  product.description
+    ? `- Description: **${product.description}**`
+    : ""
+}`,
+          });
+        }
+      }
+    }
+
+    // =========================================================
+    // 10. CUSTOMER COUNT
     // =========================================================
     if (
       normalizedMessage.includes("how many customers") ||
@@ -438,7 +783,7 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 9. LIST CUSTOMERS
+    // 11. LIST CUSTOMERS
     // =========================================================
     if (
       normalizedMessage.includes("who are our customers") ||
@@ -470,9 +815,9 @@ export async function POST(request: Request) {
       const details = customers
         .map(
           (customer) =>
-            `- **${customer.name}**\n  Email: ${
-              customer.email || "Not provided"
-            }\n  Phone: ${customer.phone || "Not provided"}`
+            `- **${customer.name}**
+  Email: ${customer.email || "Not provided"}
+  Phone: ${customer.phone || "Not provided"}`
         )
         .join("\n\n");
 
@@ -483,7 +828,7 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 10. PRODUCT COUNT
+    // 12. PRODUCT COUNT
     // =========================================================
     if (
       normalizedMessage.includes("how many products") ||
@@ -502,7 +847,7 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 11. VENDOR COUNT
+    // 13. VENDOR COUNT
     // =========================================================
     if (
       normalizedMessage.includes("how many vendors") ||
@@ -521,7 +866,7 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 12. PAYMENT COUNT
+    // 14. PAYMENT COUNT
     // =========================================================
     if (
       normalizedMessage.includes("how many payments") ||
@@ -539,7 +884,7 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 13. TOTAL AMOUNT COLLECTED
+    // 15. TOTAL AMOUNT COLLECTED
     // =========================================================
     if (
       normalizedMessage.includes("how much has been paid") ||
@@ -567,8 +912,7 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 14. PAID INVOICE COUNT
-    // IMPORTANT: BEFORE TOTAL INVOICE COUNT
+    // 16. PAID INVOICE COUNT
     // =========================================================
     if (
       normalizedMessage.includes("how many invoices have been paid") ||
@@ -592,7 +936,7 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 15. TOTAL INVOICE COUNT
+    // 17. TOTAL INVOICE COUNT
     // =========================================================
     if (
       normalizedMessage.includes("how many invoices") ||
@@ -609,7 +953,7 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 16. OUT-OF-STOCK PRODUCTS
+    // 18. OUT-OF-STOCK PRODUCTS
     // =========================================================
     if (
       normalizedMessage.includes("out of stock") ||
@@ -656,7 +1000,7 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 17. MOST EXPENSIVE PRODUCT
+    // 19. MOST EXPENSIVE PRODUCT
     // =========================================================
     if (
       normalizedMessage.includes("most expensive product") ||
@@ -691,14 +1035,19 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         success: true,
-        response: `The most expensive product is **${product.name}**.\n\n- SKU: **${product.sku}**\n- Category: **${product.category.name}**\n- Selling price: **${formatCurrency(
+        response: `The most expensive product is **${product.name}**.
+
+- SKU: **${product.sku}**
+- Category: **${product.category.name}**
+- Selling price: **${formatCurrency(
           Number(product.sellingPrice)
-        )}**\n- Current stock: **${product.stock}**`,
+        )}**
+- Current stock: **${product.stock}**`,
       });
     }
 
     // =========================================================
-    // 18. CHEAPEST PRODUCT
+    // 20. CHEAPEST PRODUCT
     // =========================================================
     if (
       normalizedMessage.includes("cheapest product") ||
@@ -733,14 +1082,19 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         success: true,
-        response: `The least expensive product is **${product.name}**.\n\n- SKU: **${product.sku}**\n- Category: **${product.category.name}**\n- Selling price: **${formatCurrency(
+        response: `The least expensive product is **${product.name}**.
+
+- SKU: **${product.sku}**
+- Category: **${product.category.name}**
+- Selling price: **${formatCurrency(
           Number(product.sellingPrice)
-        )}**\n- Current stock: **${product.stock}**`,
+        )}**
+- Current stock: **${product.stock}**`,
       });
     }
 
     // =========================================================
-    // 19. HIGHEST STOCK PRODUCT
+    // 21. HIGHEST STOCK PRODUCT
     // =========================================================
     if (
       normalizedMessage.includes("highest stock") ||
@@ -775,14 +1129,19 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         success: true,
-        response: `The product with the highest stock is **${product.name}**.\n\n- SKU: **${product.sku}**\n- Category: **${product.category.name}**\n- Current stock: **${product.stock} units**\n- Selling price: **${formatCurrency(
+        response: `The product with the highest stock is **${product.name}**.
+
+- SKU: **${product.sku}**
+- Category: **${product.category.name}**
+- Current stock: **${product.stock} units**
+- Selling price: **${formatCurrency(
           Number(product.sellingPrice)
-        )}`,
+        )}**`,
       });
     }
 
     // =========================================================
-    // 20. BIGGEST INVOICE
+    // 22. BIGGEST INVOICE
     // =========================================================
     if (
       normalizedMessage.includes("biggest invoice") ||
@@ -817,16 +1176,19 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         success: true,
-        response: `The biggest invoice is **${invoice.invoiceNumber}**.\n\n- Customer: **${invoice.customer.name}**\n- Invoice amount: **${formatCurrency(
+        response: `The biggest invoice is **${invoice.invoiceNumber}**.
+
+- Customer: **${invoice.customer.name}**
+- Invoice amount: **${formatCurrency(
           Number(invoice.totalAmount)
-        )}**\n- Paid: **${formatCurrency(
-          Number(invoice.paidAmount)
-        )}**\n- Status: **${invoice.status}**`,
+        )}**
+- Paid: **${formatCurrency(Number(invoice.paidAmount))}**
+- Status: **${invoice.status}**`,
       });
     }
 
     // =========================================================
-    // 21. AVERAGE INVOICE VALUE
+    // 23. AVERAGE INVOICE VALUE
     // =========================================================
     if (
       normalizedMessage.includes("average invoice") ||
@@ -853,7 +1215,7 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 22. GENERAL DATABASE FALLBACK
+    // 24. GENERAL DATABASE FALLBACK
     // =========================================================
 
     const apiKey = process.env.GEMINI_API_KEY;
