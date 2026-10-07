@@ -11,6 +11,8 @@ const suggestedQuestions = [
   "What are my total sales?",
   "How much money do customers owe us?",
   "Which invoices are overdue?",
+  "Show me unpaid invoices",
+  "Show me draft invoices",
   "Which products are low in stock?",
 ];
 
@@ -19,7 +21,7 @@ export default function AIPage() {
     {
       role: "assistant",
       content:
-        "Hello! I'm the Urban Furniture AI Assistant. I can help you understand sales, customer outstanding amounts, overdue invoices, and inventory.",
+        "Hello! I'm the Urban Furniture AI Assistant. I can help you understand sales, customer outstanding amounts, overdue invoices, unpaid invoices, draft invoices, and inventory.",
     },
   ]);
 

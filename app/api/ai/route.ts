@@ -26,13 +26,21 @@ export async function POST(request: Request) {
     const normalizedMessage = message.toLowerCase().trim();
 
     // =========================================================
-    // 1. TOTAL SALES
+    // 1. TOTAL SALES / REVENUE
     // =========================================================
     if (
       normalizedMessage.includes("total sales") ||
       normalizedMessage.includes("total sale") ||
       normalizedMessage.includes("sales total") ||
-      normalizedMessage.includes("how much have we sold")
+      normalizedMessage.includes("our sales") ||
+      normalizedMessage.includes("what are our sales") ||
+      normalizedMessage.includes("how much did we sell") ||
+      normalizedMessage.includes("how much have we sold") ||
+      normalizedMessage.includes("total revenue") ||
+      normalizedMessage.includes("our revenue") ||
+      normalizedMessage.includes("what is our revenue") ||
+      normalizedMessage.includes("how much revenue") ||
+      normalizedMessage.includes("revenue generated")
     ) {
       const result = await prisma.invoice.aggregate({
         _sum: {
@@ -55,7 +63,65 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 2. CUSTOMER OUTSTANDING / ACCOUNTS RECEIVABLE
+    // 2. CUSTOMER WHO OWES THE MOST
+    // IMPORTANT: BEFORE GENERIC CUSTOMER OUTSTANDING
+    // =========================================================
+    if (
+      normalizedMessage.includes("customer owes the most") ||
+      normalizedMessage.includes("customer who owes the most") ||
+      normalizedMessage.includes("owes us the most") ||
+      normalizedMessage.includes("highest outstanding customer") ||
+      normalizedMessage.includes("biggest outstanding customer")
+    ) {
+      const invoices = await prisma.invoice.findMany({
+        select: {
+          totalAmount: true,
+          paidAmount: true,
+          customer: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      });
+
+      const customerOutstanding = new Map<string, number>();
+
+      for (const invoice of invoices) {
+        const outstanding =
+          Number(invoice.totalAmount) - Number(invoice.paidAmount);
+
+        const current =
+          customerOutstanding.get(invoice.customer.name) ?? 0;
+
+        customerOutstanding.set(
+          invoice.customer.name,
+          current + outstanding
+        );
+      }
+
+      const highest = [...customerOutstanding.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .find(([, amount]) => amount > 0);
+
+      if (!highest) {
+        return NextResponse.json({
+          success: true,
+          response:
+            "There are currently **no outstanding customer balances**.",
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        response: `The customer who owes Urban Furniture the most is **${highest[0]}**, with an outstanding balance of **${formatCurrency(
+          highest[1]
+        )}**.`,
+      });
+    }
+
+    // =========================================================
+    // 3. CUSTOMER OUTSTANDING / ACCOUNTS RECEIVABLE
     // =========================================================
     if (
       normalizedMessage.includes("owe") ||
@@ -63,7 +129,10 @@ export async function POST(request: Request) {
       normalizedMessage.includes("receivable") ||
       normalizedMessage.includes("due from customers") ||
       normalizedMessage.includes("customers owe") ||
-      normalizedMessage.includes("money do customers")
+      normalizedMessage.includes("money do customers") ||
+      normalizedMessage.includes("how much do customers owe") ||
+      normalizedMessage.includes("customer dues") ||
+      normalizedMessage.includes("amount due from customers")
     ) {
       const invoices = await prisma.invoice.findMany({
         select: {
@@ -95,13 +164,15 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 3. OVERDUE INVOICES
+    // 4. OVERDUE INVOICES
     // =========================================================
     if (
       normalizedMessage.includes("overdue") ||
       normalizedMessage.includes("over due") ||
       normalizedMessage.includes("late invoice") ||
-      normalizedMessage.includes("late invoices")
+      normalizedMessage.includes("late invoices") ||
+      normalizedMessage.includes("which invoices are late") ||
+      normalizedMessage.includes("invoices are late")
     ) {
       const now = new Date();
 
@@ -160,7 +231,7 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 4. UNPAID INVOICES
+    // 5. UNPAID INVOICES
     // =========================================================
     if (
       normalizedMessage.includes("unpaid invoice") ||
@@ -171,7 +242,9 @@ export async function POST(request: Request) {
       normalizedMessage.includes("haven't been paid") ||
       normalizedMessage.includes("have not been paid") ||
       normalizedMessage.includes("pending payment") ||
-      normalizedMessage.includes("pending payments")
+      normalizedMessage.includes("pending payments") ||
+      normalizedMessage.includes("which invoices are pending") ||
+      normalizedMessage.includes("invoices pending payment")
     ) {
       const unpaidInvoices = await prisma.invoice.findMany({
         where: {
@@ -228,7 +301,7 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 5. DRAFT / PENDING INVOICES
+    // 6. DRAFT / PENDING INVOICES
     // =========================================================
     if (
       normalizedMessage.includes("draft invoice") ||
@@ -237,7 +310,9 @@ export async function POST(request: Request) {
       normalizedMessage.includes("pending invoice") ||
       normalizedMessage.includes("pending invoices") ||
       normalizedMessage.includes("not sent") ||
-      normalizedMessage.includes("not been sent")
+      normalizedMessage.includes("not been sent") ||
+      normalizedMessage.includes("unsent invoice") ||
+      normalizedMessage.includes("unsent invoices")
     ) {
       const draftInvoices = await prisma.invoice.findMany({
         where: {
@@ -292,14 +367,18 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 6. LOW STOCK
+    // 7. LOW STOCK / RESTOCKING
     // =========================================================
     if (
       normalizedMessage.includes("low stock") ||
       normalizedMessage.includes("low in stock") ||
       normalizedMessage.includes("low inventory") ||
       normalizedMessage.includes("low on stock") ||
-      normalizedMessage.includes("running low")
+      normalizedMessage.includes("running low") ||
+      normalizedMessage.includes("need restocking") ||
+      normalizedMessage.includes("needs restocking") ||
+      normalizedMessage.includes("need to restock") ||
+      normalizedMessage.includes("products to restock")
     ) {
       const products = await prisma.product.findMany({
         select: {
@@ -340,13 +419,15 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 7. CUSTOMER COUNT
+    // 8. CUSTOMER COUNT
     // =========================================================
     if (
       normalizedMessage.includes("how many customers") ||
       normalizedMessage.includes("number of customers") ||
       normalizedMessage.includes("customer count") ||
-      normalizedMessage.includes("total customers")
+      normalizedMessage.includes("total customers") ||
+      normalizedMessage.includes("how many clients") ||
+      normalizedMessage.includes("number of clients")
     ) {
       const count = await prisma.customer.count();
 
@@ -357,13 +438,60 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 8. PRODUCT COUNT
+    // 9. LIST CUSTOMERS
+    // =========================================================
+    if (
+      normalizedMessage.includes("who are our customers") ||
+      normalizedMessage.includes("who are the customers") ||
+      normalizedMessage.includes("list customers") ||
+      normalizedMessage.includes("list all customers") ||
+      normalizedMessage.includes("show customers") ||
+      normalizedMessage.includes("show all customers") ||
+      normalizedMessage.includes("our customers")
+    ) {
+      const customers = await prisma.customer.findMany({
+        select: {
+          name: true,
+          email: true,
+          phone: true,
+        },
+        orderBy: {
+          name: "asc",
+        },
+      });
+
+      if (customers.length === 0) {
+        return NextResponse.json({
+          success: true,
+          response: "There are currently **no customers** registered.",
+        });
+      }
+
+      const details = customers
+        .map(
+          (customer) =>
+            `- **${customer.name}**\n  Email: ${
+              customer.email || "Not provided"
+            }\n  Phone: ${customer.phone || "Not provided"}`
+        )
+        .join("\n\n");
+
+      return NextResponse.json({
+        success: true,
+        response: `Urban Furniture has **${customers.length} customers**:\n\n${details}`,
+      });
+    }
+
+    // =========================================================
+    // 10. PRODUCT COUNT
     // =========================================================
     if (
       normalizedMessage.includes("how many products") ||
       normalizedMessage.includes("number of products") ||
       normalizedMessage.includes("product count") ||
-      normalizedMessage.includes("total products")
+      normalizedMessage.includes("total products") ||
+      normalizedMessage.includes("how many items") ||
+      normalizedMessage.includes("number of items")
     ) {
       const count = await prisma.product.count();
 
@@ -374,13 +502,15 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 9. VENDOR COUNT
+    // 11. VENDOR COUNT
     // =========================================================
     if (
       normalizedMessage.includes("how many vendors") ||
       normalizedMessage.includes("number of vendors") ||
       normalizedMessage.includes("vendor count") ||
-      normalizedMessage.includes("total vendors")
+      normalizedMessage.includes("total vendors") ||
+      normalizedMessage.includes("how many suppliers") ||
+      normalizedMessage.includes("number of suppliers")
     ) {
       const count = await prisma.vendor.count();
 
@@ -391,13 +521,14 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 10. PAYMENT COUNT
+    // 12. PAYMENT COUNT
     // =========================================================
     if (
       normalizedMessage.includes("how many payments") ||
       normalizedMessage.includes("number of payments") ||
       normalizedMessage.includes("payment count") ||
-      normalizedMessage.includes("total payments")
+      normalizedMessage.includes("total payments") ||
+      normalizedMessage.includes("how many transactions")
     ) {
       const count = await prisma.payment.count();
 
@@ -408,8 +539,36 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 11. PAID INVOICE COUNT
-    // IMPORTANT: This must come BEFORE total invoice count.
+    // 13. TOTAL AMOUNT COLLECTED
+    // =========================================================
+    if (
+      normalizedMessage.includes("how much has been paid") ||
+      normalizedMessage.includes("how much have we collected") ||
+      normalizedMessage.includes("total collected") ||
+      normalizedMessage.includes("amount collected") ||
+      normalizedMessage.includes("total amount collected") ||
+      normalizedMessage.includes("how much money have we collected") ||
+      normalizedMessage.includes("money collected")
+    ) {
+      const result = await prisma.invoice.aggregate({
+        _sum: {
+          paidAmount: true,
+        },
+      });
+
+      const totalCollected = Number(result._sum.paidAmount ?? 0);
+
+      return NextResponse.json({
+        success: true,
+        response: `Urban Furniture has collected **${formatCurrency(
+          totalCollected
+        )}** in total payments.`,
+      });
+    }
+
+    // =========================================================
+    // 14. PAID INVOICE COUNT
+    // IMPORTANT: BEFORE TOTAL INVOICE COUNT
     // =========================================================
     if (
       normalizedMessage.includes("how many invoices have been paid") ||
@@ -417,7 +576,8 @@ export async function POST(request: Request) {
       normalizedMessage.includes("number of paid invoices") ||
       normalizedMessage.includes("paid invoice count") ||
       normalizedMessage.includes("how many invoices are paid") ||
-      normalizedMessage.includes("how many fully paid invoices")
+      normalizedMessage.includes("how many fully paid invoices") ||
+      normalizedMessage.includes("how many are paid")
     ) {
       const count = await prisma.invoice.count({
         where: {
@@ -432,7 +592,7 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 12. TOTAL INVOICE COUNT
+    // 15. TOTAL INVOICE COUNT
     // =========================================================
     if (
       normalizedMessage.includes("how many invoices") ||
@@ -449,12 +609,13 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 13. OUT-OF-STOCK PRODUCTS
+    // 16. OUT-OF-STOCK PRODUCTS
     // =========================================================
     if (
       normalizedMessage.includes("out of stock") ||
       normalizedMessage.includes("out-of-stock") ||
-      normalizedMessage.includes("outofstock")
+      normalizedMessage.includes("outofstock") ||
+      normalizedMessage.includes("completely out of stock")
     ) {
       const products = await prisma.product.findMany({
         where: {
@@ -495,13 +656,14 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 14. MOST EXPENSIVE PRODUCT
+    // 17. MOST EXPENSIVE PRODUCT
     // =========================================================
     if (
       normalizedMessage.includes("most expensive product") ||
       normalizedMessage.includes("most expensive") ||
       normalizedMessage.includes("highest priced product") ||
-      normalizedMessage.includes("highest price product")
+      normalizedMessage.includes("highest price product") ||
+      normalizedMessage.includes("highest price")
     ) {
       const product = await prisma.product.findFirst({
         orderBy: {
@@ -536,13 +698,14 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 15. CHEAPEST PRODUCT
+    // 18. CHEAPEST PRODUCT
     // =========================================================
     if (
       normalizedMessage.includes("cheapest product") ||
       normalizedMessage.includes("least expensive product") ||
       normalizedMessage.includes("lowest priced product") ||
-      normalizedMessage.includes("lowest price product")
+      normalizedMessage.includes("lowest price product") ||
+      normalizedMessage.includes("cheapest item")
     ) {
       const product = await prisma.product.findFirst({
         orderBy: {
@@ -577,13 +740,14 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 16. HIGHEST STOCK PRODUCT
+    // 19. HIGHEST STOCK PRODUCT
     // =========================================================
     if (
       normalizedMessage.includes("highest stock") ||
       normalizedMessage.includes("most stock") ||
       normalizedMessage.includes("maximum stock") ||
-      normalizedMessage.includes("product with the most stock")
+      normalizedMessage.includes("product with the most stock") ||
+      normalizedMessage.includes("most inventory")
     ) {
       const product = await prisma.product.findFirst({
         orderBy: {
@@ -618,7 +782,51 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 17. AVERAGE INVOICE VALUE
+    // 20. BIGGEST INVOICE
+    // =========================================================
+    if (
+      normalizedMessage.includes("biggest invoice") ||
+      normalizedMessage.includes("largest invoice") ||
+      normalizedMessage.includes("highest invoice") ||
+      normalizedMessage.includes("biggest bill") ||
+      normalizedMessage.includes("largest bill")
+    ) {
+      const invoice = await prisma.invoice.findFirst({
+        orderBy: {
+          totalAmount: "desc",
+        },
+        select: {
+          invoiceNumber: true,
+          totalAmount: true,
+          paidAmount: true,
+          status: true,
+          customer: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      });
+
+      if (!invoice) {
+        return NextResponse.json({
+          success: true,
+          response: "There are no invoices in the database.",
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        response: `The biggest invoice is **${invoice.invoiceNumber}**.\n\n- Customer: **${invoice.customer.name}**\n- Invoice amount: **${formatCurrency(
+          Number(invoice.totalAmount)
+        )}**\n- Paid: **${formatCurrency(
+          Number(invoice.paidAmount)
+        )}**\n- Status: **${invoice.status}**`,
+      });
+    }
+
+    // =========================================================
+    // 21. AVERAGE INVOICE VALUE
     // =========================================================
     if (
       normalizedMessage.includes("average invoice") ||
@@ -645,7 +853,7 @@ export async function POST(request: Request) {
     }
 
     // =========================================================
-    // 18. GENERAL DATABASE FALLBACK
+    // 22. GENERAL DATABASE FALLBACK
     // =========================================================
 
     const apiKey = process.env.GEMINI_API_KEY;
